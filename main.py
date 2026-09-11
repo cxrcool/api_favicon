@@ -18,6 +18,7 @@ from favicon_app.services import blacklist_service, stats_service
 from favicon_app.utils.referer_log import append_rotating_line
 
 logger = logging.getLogger(__name__)
+startup_logger = logging.getLogger('uvicorn.error')
 
 # 站点的 favicon.ico 图标
 favicon_icon_file = setting.favicon_icon_file
@@ -57,13 +58,17 @@ def _write_referer(value: str) -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(application: FastAPI):
     try:
         favicon.reset_failed_url_counts()
         await blacklist_service.initialize()
         await favicon.initialize_http_client()
         await favicon_service.start_refresh_workers()
         await stats_service.start_stats()
+        startup_logger.info(
+            'Favicon API version %s startup complete',
+            application.version,
+        )
         yield
     finally:
         for cleanup in (
@@ -81,7 +86,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="Favicon API",
     description="获取网站favicon图标",
-    version="4.1",
+    version="4.3",
     lifespan=lifespan,
 )
 app.include_router(favicon_router)

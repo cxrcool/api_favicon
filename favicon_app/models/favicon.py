@@ -896,6 +896,11 @@ def failed_url_ttl(identity: str) -> int:
         content = FileUtil.read_file(path, mode='r')
         try:
             record = json.loads(content or '')
+            if isinstance(record, dict) and record.get('kind') == 'transient':
+                # Records written by versions that used a fixed short TTL must
+                # not keep an origin on the old schedule after an upgrade.
+                os.remove(path)
+                return 0
             expires_at = float(record['expires_at'])
             created_at = float(record.get('created_at', os.path.getmtime(path)))
             duration = int(record.get('ttl', max(1, expires_at - created_at)))
@@ -967,36 +972,13 @@ def add_failed_url(identity: str) -> int:
 
 
 def add_transient_failed_url(identity: str) -> int:
-    if not identity:
-        return 0
-    try:
-        existing_ttl = failed_url_ttl(identity)
-        if existing_ttl > 0:
-            return existing_ttl
+    """Backward-compatible alias for the geometric origin negative cache.
 
-        path = _failure_path(identity)
-        duration = setting.TRANSIENT_FAILED_URL_EXPIRE
-        now = time.time()
-        record = json.dumps({
-            'identity': identity,
-            'created_at': now,
-            'expires_at': now + duration,
-            'ttl': duration,
-            'kind': 'transient',
-        }, ensure_ascii=True, separators=(',', ':'))
-        if FileUtil.write_file(path, record, atomic=True):
-            with _negative_memory_lock:
-                _negative_memory_cache[identity] = now + duration
-                _negative_memory_cache.move_to_end(identity)
-                _trim_negative_cache(_negative_memory_cache)
-            return duration
-    except Exception as exc:
-        logger.error(
-            '临时失败缓存写入失败：%s；%s；不缓存失败结果',
-            _url_for_log(identity),
-            _exception_for_log(exc),
-        )
-    return 0
+    Provider failures are no longer given a separate fixed short TTL. Keeping
+    this entry point avoids breaking callers from older deployments while
+    ensuring they cannot create another 300-second failure record.
+    """
+    return add_failed_url(identity)
 
 
 def clear_failed_url(identity: str) -> None:

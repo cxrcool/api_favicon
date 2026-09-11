@@ -99,7 +99,6 @@ time_of_30_days = 30 * time_of_1_days
 FAILED_URL_EXPIRE_MIN = env_int('FAILED_URL_EXPIRE_MIN', time_of_6_hours, minimum=1)
 FAILED_URL_EXPIRE_MAX = env_int('FAILED_URL_EXPIRE_MAX', 72 * time_of_1_hours, minimum=1)
 FAILED_URL_EXPIRE_RATIO = env_float('FAILED_URL_EXPIRE_RATIO', 2, minimum=1)
-TRANSIENT_FAILED_URL_EXPIRE = env_int('TRANSIENT_FAILED_URL_EXPIRE', time_of_5_minus, minimum=1)
 NEGATIVE_MEMORY_CACHE_MAX_ITEMS = env_int('NEGATIVE_MEMORY_CACHE_MAX_ITEMS', 50000, minimum=0)
 if FAILED_URL_EXPIRE_MAX < FAILED_URL_EXPIRE_MIN:
     raise ValueError('FAILED_URL_EXPIRE_MAX must be at least FAILED_URL_EXPIRE_MIN')
@@ -116,9 +115,9 @@ HTTP_MAX_CONCURRENCY = env_int('HTTP_MAX_CONCURRENCY', 50, minimum=1)
 # 启用后 aiohttp 从标准环境变量读取 HTTP(S) 代理和 NO_PROXY。
 HTTP_TRUST_ENV = env_bool('HTTP_TRUST_ENV', False)
 
-ICON_REFRESH_INTERVAL = env_int('ICON_REFRESH_INTERVAL', time_of_7_days, minimum=0)
+ICON_REFRESH_INTERVAL = env_int('ICON_REFRESH_INTERVAL', time_of_30_days, minimum=0)
 ICON_CLIENT_CACHE_TIME = env_int('ICON_CLIENT_CACHE_TIME', time_of_7_days, minimum=0)
-# -1 表示本地图标永久保留；非负值表示读取时按文件年龄淘汰。
+# -1 禁用文件年龄刷新条件；非负值达到后返回旧图并后台刷新，不删除文件。
 ICON_FILE_EXPIRE_TIME = env_int('ICON_FILE_EXPIRE_TIME', -1, minimum=-1)
 DEFAULT_CLIENT_CACHE_TIME = env_int('DEFAULT_CLIENT_CACHE_TIME', time_of_30_minus, minimum=0)
 MEMORY_CACHE_MAX_ITEMS = env_int('MEMORY_CACHE_MAX_ITEMS', 5000, minimum=0)
@@ -127,12 +126,45 @@ MEMORY_CACHE_ITEM_MAX_BYTES = env_int('MEMORY_CACHE_ITEM_MAX_BYTES', 512 * 1024,
 MEMORY_CACHE_RECHECK_INTERVAL = env_int('MEMORY_CACHE_RECHECK_INTERVAL', 60, minimum=0)
 MAX_INFLIGHT_FETCHES = env_int('MAX_INFLIGHT_FETCHES', 500, minimum=1)
 FOREGROUND_FETCH_TIMEOUT = env_float('FOREGROUND_FETCH_TIMEOUT', 10, minimum=0.001)
-# 覆盖缓存 I/O、负缓存检查和前台抓取等待，避免反向代理先行超时。
+# 覆盖冷缓存 I/O、未命中负缓存检查和前台抓取等待，避免反向代理先行超时。
 FOREGROUND_RESPONSE_TIMEOUT = env_float('FOREGROUND_RESPONSE_TIMEOUT', 12, minimum=0.001)
 DIRECT_FETCH_TIMEOUT = env_float('DIRECT_FETCH_TIMEOUT', 10, minimum=0.001)
 FALLBACK_FETCH_TIMEOUT = env_float('FALLBACK_FETCH_TIMEOUT', 15, minimum=0.001)
-FETCH_TOTAL_TIMEOUT = env_float('FETCH_TOTAL_TIMEOUT', 75, minimum=0.001)
+FETCH_TOTAL_TIMEOUT = env_float('FETCH_TOTAL_TIMEOUT', 105, minimum=0.001)
 PROVIDER_MAX_CONCURRENCY = env_int('PROVIDER_MAX_CONCURRENCY', 5, minimum=1)
+PROVIDER_SCORE_UPDATE_RATE = env_float(
+    'PROVIDER_SCORE_UPDATE_RATE',
+    0.2,
+    minimum=0.001,
+)
+PROVIDER_SELECTION_MIN_WEIGHT = env_float(
+    'PROVIDER_SELECTION_MIN_WEIGHT',
+    0.2,
+    minimum=0.001,
+)
+PROVIDER_SELECTION_EXPLORATION_RATE = env_float(
+    'PROVIDER_SELECTION_EXPLORATION_RATE',
+    0.1,
+    minimum=0.0,
+)
+PROVIDER_SCORE_LOG_INTERVAL = env_float(
+    'PROVIDER_SCORE_LOG_INTERVAL',
+    300,
+    minimum=0.001,
+)
+PROVIDER_SCORE_LOG_MIN_DELTA = env_float(
+    'PROVIDER_SCORE_LOG_MIN_DELTA',
+    0.1,
+    minimum=0.001,
+)
+if PROVIDER_SCORE_UPDATE_RATE > 1:
+    raise ValueError('PROVIDER_SCORE_UPDATE_RATE must be at most 1')
+if PROVIDER_SELECTION_MIN_WEIGHT > 1:
+    raise ValueError('PROVIDER_SELECTION_MIN_WEIGHT must be at most 1')
+if PROVIDER_SELECTION_EXPLORATION_RATE > 1:
+    raise ValueError('PROVIDER_SELECTION_EXPLORATION_RATE must be at most 1')
+if PROVIDER_SCORE_LOG_MIN_DELTA > 1:
+    raise ValueError('PROVIDER_SCORE_LOG_MIN_DELTA must be at most 1')
 PROVIDER_CIRCUIT_FAILURE_THRESHOLD = env_int(
     'PROVIDER_CIRCUIT_FAILURE_THRESHOLD',
     5,
@@ -177,6 +209,6 @@ CUSTOM_PROTOCOL_MAPPINGS = {
 FAVICON_APIS = [
     ('https://t3.gstatic.cn/faviconV2?client=SOCIAL&fallback_opts=TYPE,SIZE,URL&type=FAVICON&size=128&url={base_url}',
      'gstatic接口'),
-    ('https://favicon.im/{domain}', 'favicon.im'),
+    ('https://a.favicon.im/{domain}', 'favicon.im'),
     ('', '网站默认位置/favicon.ico'),
 ]
